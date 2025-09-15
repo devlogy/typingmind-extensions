@@ -1,134 +1,98 @@
-// TypingMind Auto-Collapse Sidebar Extension v2.0 - FIXED
-// Author: Devlogy Team - Problème de réouverture résolu
+// TypingMind Auto-Collapse Sidebar Extension v3.0 - SOLUTION DÉFINITIVE
+// Author: Devlogy Team - Problème classes CSS résolu
 (function() {
     'use strict';
     
-    console.log('🔧 TypingMind Auto-Collapse Sidebar v2.0 (FIXED) chargée');
+    console.log('🔧 TypingMind Auto-Collapse Sidebar v3.0 (SOLUTION DÉFINITIVE) chargée');
     
-    // Configuration
     const CONFIG = {
         MAX_ATTEMPTS: 10,
         RETRY_DELAY: 500,
         INITIAL_DELAY: 1000,
-        ANIMATION_DURATION: '0.3s'
+        NATIVE_HIDDEN_CLASS: 'translate-x-[-100%]',
+        NATIVE_OPACITY_CLASS: 'opacity-0'
     };
     
     let isExtensionActive = true;
+    let extensionCollapsed = false;
     
-    // Fonction pour nettoyer nos styles inline et laisser TypingMind reprendre le contrôle
-    function cleanupCustomStyles() {
-        console.log('🧹 Nettoyage des styles personnalisés...');
-        
+    // Fonction pour utiliser le système natif de TypingMind
+    function collapseSidebarNative() {
         const navContainer = document.querySelector('[data-element-id="nav-container"]');
+        if (!navContainer) return false;
+        
+        console.log('🎯 Collapse via système natif TypingMind');
+        
+        // Utiliser les classes CSS natives de TypingMind au lieu de styles inline
+        navContainer.classList.add(CONFIG.NATIVE_HIDDEN_CLASS, CONFIG.NATIVE_OPACITY_CLASS);
+        
+        // Modifier la variable CSS comme TypingMind le fait
+        document.documentElement.style.setProperty('--current-sidebar-width', '0px');
+        
+        // Ajuster le contenu principal avec les classes natives
         const mainContent = document.querySelector('[data-element-id="main-content-area"]');
-        
-        if (navContainer) {
-            // Supprimer nos styles inline
-            navContainer.style.removeProperty('transform');
-            navContainer.style.removeProperty('transition');
-            navContainer.removeAttribute('data-sidebar-collapsed');
-        }
-        
         if (mainContent) {
-            mainContent.style.removeProperty('padding-left');
-            mainContent.style.removeProperty('transition');
+            // Enlever la classe qui utilise la variable CSS et mettre padding 0
+            mainContent.classList.remove('md:pl-[--current-sidebar-width]');
+            mainContent.classList.add('pl-0');
         }
         
-        // Restaurer la variable CSS originale
-        document.documentElement.style.removeProperty('--current-sidebar-width');
+        extensionCollapsed = true;
+        return true;
     }
     
-    // Fonction pour collapser la sidebar (améliorée)
-    function collapseSidebar() {
-        if (!isExtensionActive) return false;
-        
-        // Méthode 1: Bouton natif mobile
-        const closeButton = document.querySelector('button[aria-label="Fermer la barre latérale"]');
-        if (closeButton && window.innerWidth < 768) {
-            console.log('✅ Collapse via bouton mobile');
-            closeButton.click();
-            return true;
-        }
-        
-        // Méthode 2: Manipulation CSS pour desktop
+    // Observer les changements de classes pour détecter quand TypingMind veut ouvrir
+    function setupClassObserver() {
         const navContainer = document.querySelector('[data-element-id="nav-container"]');
-        if (navContainer) {
-            console.log('✅ Collapse via CSS manipulation');
-            
-            // Variables CSS
-            document.documentElement.style.setProperty('--current-sidebar-width', '0px');
-            
-            // Animation de la sidebar
-            navContainer.style.transform = 'translateX(-384px)';
-            navContainer.style.transition = `transform ${CONFIG.ANIMATION_DURATION} ease-in-out`;
-            
-            // Ajuster le contenu principal
-            const mainContent = document.querySelector('[data-element-id="main-content-area"]');
-            if (mainContent) {
-                mainContent.style.paddingLeft = '0px';
-                mainContent.style.transition = `padding-left ${CONFIG.ANIMATION_DURATION} ease-in-out`;
-            }
-            
-            // Marquer comme collapsé
-            navContainer.setAttribute('data-sidebar-collapsed', 'true');
-            return true;
-        }
+        if (!navContainer) return;
         
-        return false;
-    }
-    
-    // Vérifier si déjà collapsé par notre extension
-    function isCollapsedByExtension() {
-        const navContainer = document.querySelector('[data-element-id="nav-container"]');
-        return navContainer && navContainer.getAttribute('data-sidebar-collapsed') === 'true';
-    }
-    
-    // Détecter si TypingMind veut ouvrir la sidebar
-    function setupOpenSidebarListener() {
-        // Écouter les clics sur le bouton "Ouvrir la barre latérale"
-        document.addEventListener('click', function(event) {
-            const button = event.target.closest('button[aria-label="Ouvrir la barre latérale"]');
-            if (button && isCollapsedByExtension()) {
-                console.log('🔓 Utilisateur veut ouvrir la sidebar - nettoyage des styles...');
-                
-                // Désactiver temporairement l'extension
-                isExtensionActive = false;
-                
-                // Nettoyer nos styles pour laisser TypingMind reprendre le contrôle
-                cleanupCustomStyles();
-                
-                // Réactiver l'extension après un délai
-                setTimeout(() => {
-                    isExtensionActive = true;
-                    console.log('🔄 Extension réactivée');
-                }, 2000);
-                
-                showNotification('↔️ Sidebar ouverte');
-            }
-        });
-    }
-    
-    // Observer les changements de variables CSS de TypingMind
-    function setupCSSVariableObserver() {
-        const observer = new MutationObserver(() => {
-            // Vérifier si --current-sidebar-width a changé
-            const currentWidth = getComputedStyle(document.documentElement)
-                .getPropertyValue('--current-sidebar-width').trim();
-            
-            // Si TypingMind a restauré la largeur et que notre extension n'est pas active
-            if (currentWidth === '384px' && isCollapsedByExtension() && !isExtensionActive) {
-                console.log('📏 Détection changement CSS - nettoyage...');
-                cleanupCustomStyles();
-            }
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    const currentClasses = navContainer.className;
+                    
+                    // Détecter si TypingMind essaie de montrer la sidebar
+                    if (extensionCollapsed && 
+                        !currentClasses.includes(CONFIG.NATIVE_HIDDEN_CLASS) && 
+                        !currentClasses.includes(CONFIG.NATIVE_OPACITY_CLASS)) {
+                        
+                        console.log('🔓 TypingMind veut ouvrir la sidebar - autorisation...');
+                        
+                        // Laisser TypingMind reprendre le contrôle
+                        extensionCollapsed = false;
+                        
+                        // Nettoyer nos modifications
+                        document.documentElement.style.removeProperty('--current-sidebar-width');
+                        
+                        // Restaurer les classes du main content
+                        const mainContent = document.querySelector('[data-element-id="main-content-area"]');
+                        if (mainContent) {
+                            mainContent.classList.remove('pl-0');
+                            mainContent.classList.add('md:pl-[--current-sidebar-width]');
+                        }
+                        
+                        showNotification('↔️ Sidebar ouverte');
+                        
+                        // Désactiver temporairement l'extension
+                        isExtensionActive = false;
+                        setTimeout(() => {
+                            isExtensionActive = true;
+                            console.log('🔄 Extension réactivée');
+                        }, 3000);
+                    }
+                }
+            });
         });
         
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['style']
+        observer.observe(navContainer, { 
+            attributes: true, 
+            attributeFilter: ['class'] 
         });
+        
+        console.log('👁️ Observer classes configuré');
     }
     
-    // Fonction d'initialisation avec retry
+    // Fonction d'initialisation
     function initCollapse(attempts = 0) {
         if (attempts >= CONFIG.MAX_ATTEMPTS) {
             console.log('❌ Auto-collapse échoué après', CONFIG.MAX_ATTEMPTS, 'tentatives');
@@ -140,23 +104,26 @@
             return;
         }
         
-        // Vérifier que les éléments sont chargés
         const navContainer = document.querySelector('[data-element-id="nav-container"]');
         const sidebarBg = document.querySelector('[data-element-id="side-bar-background"]');
         
-        if (navContainer && sidebarBg && !isCollapsedByExtension()) {
-            console.log('🎯 Sidebar détectée, collapse en cours... (tentative', attempts + 1, ')');
+        if (navContainer && sidebarBg && !extensionCollapsed) {
+            console.log('🎯 Sidebar détectée, collapse natif... (tentative', attempts + 1, ')');
             
             setTimeout(() => {
-                if (collapseSidebar()) {
-                    console.log('🎉 Sidebar auto-collapsée avec succès !');
+                if (collapseSidebarNative()) {
+                    console.log('🎉 Sidebar auto-collapsée avec système natif !');
                     showNotification('✅ Sidebar auto-collapsée');
+                    
+                    // Configurer l'observer après le collapse
+                    setTimeout(() => setupClassObserver(), 500);
                 } else {
                     setTimeout(() => initCollapse(attempts + 1), CONFIG.RETRY_DELAY);
                 }
             }, 100);
-        } else if (isCollapsedByExtension()) {
+        } else if (extensionCollapsed) {
             console.log('ℹ️ Sidebar déjà collapsée par l\'extension');
+            setupClassObserver(); // S'assurer que l'observer est actif
         } else {
             setTimeout(() => initCollapse(attempts + 1), CONFIG.RETRY_DELAY);
         }
@@ -182,7 +149,6 @@
         
         document.body.appendChild(notification);
         
-        // Disparition automatique
         setTimeout(() => {
             notification.style.opacity = '0';
             setTimeout(() => {
@@ -193,19 +159,17 @@
         }, 2000);
     }
     
-    // Observer général pour les changements de page
+    // Observer général pour les nouvelles pages
     function setupGeneralObserver() {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
-                if (mutation.type === 'childList' && isExtensionActive) {
-                    // Vérifier si une nouvelle sidebar a été créée (navigation)
+                if (mutation.type === 'childList' && isExtensionActive && !extensionCollapsed) {
                     const navContainer = document.querySelector('[data-element-id="nav-container"]');
-                    if (navContainer && !isCollapsedByExtension()) {
-                        // Délai pour éviter les conflits avec les animations de TypingMind
+                    if (navContainer) {
                         setTimeout(() => {
-                            if (isExtensionActive && !isCollapsedByExtension()) {
+                            if (isExtensionActive && !extensionCollapsed) {
                                 console.log('🔄 Nouvelle sidebar détectée, collapse...');
-                                collapseSidebar();
+                                initCollapse();
                             }
                         }, 1500);
                     }
@@ -221,34 +185,31 @@
         }
     }
     
-    // Fonction toggle manuelle améliorée
+    // Toggle manuel amélioré
     window.toggleSidebarCollapse = function() {
-        if (isCollapsedByExtension()) {
+        const navContainer = document.querySelector('[data-element-id="nav-container"]');
+        if (!navContainer) return;
+        
+        if (extensionCollapsed) {
             console.log('🔓 Toggle manuel - ouverture');
-            isExtensionActive = false;
-            cleanupCustomStyles();
-            showNotification('↔️ Sidebar ouverte manuellement');
             
-            // Réactiver après délai
-            setTimeout(() => {
-                isExtensionActive = true;
-            }, 2000);
+            // Simuler ce que fait TypingMind pour ouvrir
+            navContainer.classList.remove(CONFIG.NATIVE_HIDDEN_CLASS, CONFIG.NATIVE_OPACITY_CLASS);
+            extensionCollapsed = false;
+            
+            showNotification('↔️ Sidebar ouverte manuellement');
         } else {
             console.log('🔒 Toggle manuel - fermeture');
-            collapseSidebar();
+            collapseSidebarNative();
+            setTimeout(() => setupClassObserver(), 500);
         }
     };
     
     // Point d'entrée principal
     function init() {
-        console.log('🚀 Initialisation Auto-Collapse Sidebar v2.0...');
+        console.log('🚀 Initialisation Auto-Collapse Sidebar v3.0...');
         
-        // Configuration des listeners
-        setupOpenSidebarListener();
-        setupCSSVariableObserver();
         setupGeneralObserver();
-        
-        // Démarrer le collapse initial
         setTimeout(() => initCollapse(), CONFIG.INITIAL_DELAY);
     }
     
@@ -259,8 +220,7 @@
         init();
     }
     
-    console.log('🎉 Auto-Collapse Sidebar Extension v2.0 FIXED chargée !');
-    console.log('💡 Tapez toggleSidebarCollapse() pour un toggle manuel.');
-    console.log('🔧 La sidebar peut maintenant être rouverte normalement !');
+    console.log('🎉 Auto-Collapse Sidebar Extension v3.0 SOLUTION DÉFINITIVE chargée !');
+    console.log('💡 Utilise le système natif TypingMind (classes CSS au lieu de styles inline)');
+    console.log('🔧 Toggle manuel: toggleSidebarCollapse()');
 })();
-
